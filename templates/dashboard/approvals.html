@@ -1,0 +1,258 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Account Approvals & KYC{% endblock %}
+{% block page_title %}Account Approvals & KYC Verification{% endblock %}
+
+{% block content %}
+<!-- Summary Header Cards -->
+<div class="grid-4" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 24px;">
+  <div class="card" style="border-left: 4px solid #FBBF24;">
+    <div class="stat-label">Pending Approval Requests</div>
+    <div class="stat-value" style="color: #FBBF24;">
+      {{ pending_count }}
+    </div>
+    <div class="stat-meta">Awaiting document inspection & activation</div>
+  </div>
+
+  <div class="card" style="border-left: 4px solid var(--accent-green);">
+    <div class="stat-label">Approved & Active Accounts</div>
+    <div class="stat-value" style="color: var(--accent-green);">
+      {{ active_count }}
+    </div>
+    <div class="stat-meta">Fully onboarded customers with active wallets</div>
+  </div>
+
+  <div class="card" style="border-left: 4px solid #EF4444;">
+    <div class="stat-label">Rejected Applications</div>
+    <div class="stat-value" style="color: #F87171;">
+      {{ rejected_count }}
+    </div>
+    <div class="stat-meta">Incomplete or invalid identity records</div>
+  </div>
+</div>
+
+<!-- Approvals Queue Table -->
+<div class="table-container">
+  <div class="table-header">
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <span class="table-title">Registrations Queue</span>
+      <div style="display: flex; gap: 6px;">
+        <a href="?filter=PENDING_APPROVAL" class="badge-pill {% if current_filter == 'PENDING_APPROVAL' %}badge-pending{% else %}btn-ghost{% endif %}" style="text-decoration: none; padding: 4px 10px;">
+          Pending ({{ pending_count }})
+        </a>
+        <a href="?filter=ACTIVE" class="badge-pill {% if current_filter == 'ACTIVE' %}badge-active{% else %}btn-ghost{% endif %}" style="text-decoration: none; padding: 4px 10px;">
+          Approved ({{ active_count }})
+        </a>
+        <a href="?filter=REJECTED" class="badge-pill {% if current_filter == 'REJECTED' %}badge-rejected{% else %}btn-ghost{% endif %}" style="text-decoration: none; padding: 4px 10px;">
+          Rejected ({{ rejected_count }})
+        </a>
+        <a href="?filter=ALL" class="badge-pill {% if current_filter == 'ALL' %}btn-accent{% else %}btn-ghost{% endif %}" style="text-decoration: none; padding: 4px 10px;">
+          All
+        </a>
+      </div>
+    </div>
+
+    <!-- Search input -->
+    <form method="GET" class="search-wrapper">
+      <input type="hidden" name="filter" value="{{ current_filter }}">
+      <svg class="search-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <input type="text" name="q" value="{{ query }}" placeholder="Search by name, phone, email, doc ID..." class="input-search">
+    </form>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Applicant</th>
+        <th>Document Type & Number</th>
+        <th>Document Photo</th>
+        <th>Gender / DOB</th>
+        <th>Status</th>
+        <th>Submitted</th>
+        <th style="text-align: right;">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+        <tr>
+          <td>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              {% if u.profile_photo %}
+                <img src="{{ u.profile_photo.url }}" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--accent-green);" alt="Avatar">
+              {% else %}
+                <div style="width: 38px; height: 38px; border-radius: 50%; background: var(--bg-surface-elevated); border: 1.5px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: var(--accent-green);">
+                  {{ u.full_name|slice:":2"|upper }}
+                </div>
+              {% endif %}
+              <div>
+                <div style="font-weight: 800; font-size: 14px;">{{ u.full_name }}</div>
+                <div style="font-size: 12px; color: var(--text-muted);">{{ u.phone_number }} • {{ u.email }}</div>
+              </div>
+            </div>
+          </td>
+
+          <td>
+            <span class="badge-pill {% if u.id_document_type == 'PASSPORT' %}badge-active{% else %}badge-pending{% endif %}">
+              {{ u.get_id_document_type_display|default:u.id_document_type|default:'National ID' }}
+            </span>
+            <div style="font-family: monospace; font-size: 13px; font-weight: 700; margin-top: 4px;">
+              {{ u.id_document_number|default:'—' }}
+            </div>
+          </td>
+
+          <td>
+            {% if u.id_document_photo %}
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <img src="{{ u.id_document_photo.url }}" 
+                     onclick="openDocLightbox('{{ u.id_document_photo.url }}', '{{ u.full_name|escapejs }}', '{{ u.get_id_document_type_display|escapejs }}', '{{ u.id_document_number|escapejs }}')"
+                     style="width: 52px; height: 34px; border-radius: 6px; object-fit: cover; border: 1px solid rgba(255,255,255,0.2); cursor: pointer;" 
+                     title="Click to view full photo"
+                     alt="ID Document">
+                <button type="button" 
+                        class="btn-action btn-ghost" 
+                        style="padding: 3px 8px; font-size: 11px;"
+                        onclick="openDocLightbox('{{ u.id_document_photo.url }}', '{{ u.full_name|escapejs }}', '{{ u.get_id_document_type_display|escapejs }}', '{{ u.id_document_number|escapejs }}')">
+                  Inspect
+                </button>
+              </div>
+            {% else %}
+              <span style="font-size: 12px; color: var(--text-muted); font-style: italic;">No photo attached</span>
+            {% endif %}
+          </td>
+
+          <td>
+            <div style="font-size: 12.5px; font-weight: 600;">{{ u.gender|default:'Not specified' }}</div>
+            <div style="font-size: 11.5px; color: var(--text-muted);">DOB: {{ u.date_of_birth|default:'—' }}</div>
+          </td>
+
+          <td>
+            {% if u.status == 'ACTIVE' %}
+              <span class="badge-pill badge-active">Active</span>
+            {% elif u.status == 'PENDING_APPROVAL' %}
+              <span class="badge-pill badge-pending">Pending Approval</span>
+            {% elif u.status == 'REJECTED' %}
+              <span class="badge-pill badge-rejected">Rejected</span>
+            {% else %}
+              <span class="badge-pill">{{ u.status }}</span>
+            {% endif %}
+          </td>
+
+          <td style="font-size: 12px; color: var(--text-muted);">
+            {{ u.created_at|date:"M d, Y" }}
+            <div>{{ u.created_at|date:"H:i" }}</div>
+          </td>
+
+          <td style="text-align: right;">
+            <div style="display: inline-flex; gap: 8px;">
+              {% if u.status == 'PENDING_APPROVAL' %}
+                <form method="POST" action="{% url 'dashboard:approve_user' u.id %}" style="display: inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="btn-action btn-accent" title="Approve account and activate wallet">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    Approve
+                  </button>
+                </form>
+
+                <button type="button" 
+                        class="btn-action btn-danger" 
+                        onclick="openRejectModal('{{ u.id }}', '{{ u.full_name|escapejs }}')">
+                  <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  Reject
+                </button>
+              {% elif u.status == 'REJECTED' %}
+                <form method="POST" action="{% url 'dashboard:approve_user' u.id %}" style="display: inline;">
+                  {% csrf_token %}
+                  <button type="submit" class="btn-action btn-ghost" style="padding: 6px 12px; font-size: 12px;" title="Re-approve application">
+                    Re-approve
+                  </button>
+                </form>
+              {% else %}
+                <span class="badge-pill badge-active" style="font-size: 12px;">Active Account</span>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 40px 16px;">
+            No users match the selected filter.
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal: Document Lightbox Preview -->
+<div id="docLightboxModal" class="modal-overlay" onclick="closeDocLightbox(event)">
+  <div class="modal-content" onclick="event.stopPropagation();" style="max-width: 700px;">
+    <div class="modal-header">
+      <div>
+        <h3 id="lightboxTitle" style="font-size: 17px; font-weight: 800;">Identity Document Photo</h3>
+        <p id="lightboxSubtitle" style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">National ID / Passport Verification</p>
+      </div>
+      <button type="button" class="btn-action btn-ghost" style="padding: 6px 10px;" onclick="closeDocLightbox()">✕</button>
+    </div>
+    <div class="modal-body" style="text-align: center;">
+      <div style="background: rgba(0,0,0,0.3); border-radius: 14px; padding: 12px; border: 1px solid var(--border-color); display: inline-block; width: 100%;">
+        <img id="lightboxImg" src="" style="max-width: 100%; max-height: 480px; border-radius: 10px; object-fit: contain;" alt="ID Document Photo">
+      </div>
+      <div id="lightboxMeta" style="margin-top: 14px; font-size: 13px; color: var(--text-secondary);"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-action btn-ghost" onclick="closeDocLightbox()">Close Preview</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Rejection Reason Confirmation -->
+<div id="rejectModal" class="modal-overlay" onclick="closeRejectModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation();" style="max-width: 500px;">
+    <form id="rejectForm" method="POST" action="">
+      {% csrf_token %}
+      <div class="modal-header">
+        <h3 style="font-size: 16px; font-weight: 800; color: #F87171;">Reject Account Registration</h3>
+        <button type="button" class="btn-action btn-ghost" style="padding: 4px 8px;" onclick="closeRejectModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="rejectModalText" style="font-size: 13.5px; margin-bottom: 14px; line-height: 1.5; color: var(--text-secondary);">
+          Are you sure you want to reject this registration?
+        </p>
+
+        <label style="display: block; font-size: 12px; font-weight: 700; margin-bottom: 6px; text-transform: uppercase; color: var(--text-muted);">
+          Rejection Reason
+        </label>
+        <textarea name="reason" rows="3" class="input-search" style="width: 100%; border-radius: 12px; padding: 10px; resize: vertical;" placeholder="e.g. Identity document photo is blurry or document number does not match.">Identity document photo is incomplete or unreadable.</textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-action btn-ghost" onclick="closeRejectModal()">Cancel</button>
+        <button type="submit" class="btn-action btn-danger">Confirm Rejection</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openDocLightbox(imgUrl, userName, docType, docNumber) {
+    document.getElementById('lightboxImg').src = imgUrl;
+    document.getElementById('lightboxTitle').textContent = userName + ' — ' + docType;
+    document.getElementById('lightboxSubtitle').textContent = 'Document Number: ' + docNumber;
+    document.getElementById('lightboxMeta').textContent = 'Inspected Document: ' + docType + ' #' + docNumber;
+    document.getElementById('docLightboxModal').classList.add('active');
+  }
+
+  function closeDocLightbox() {
+    document.getElementById('docLightboxModal').classList.remove('active');
+  }
+
+  function openRejectModal(userId, userName) {
+    document.getElementById('rejectForm').action = '/approvals/' + userId + '/reject/';
+    document.getElementById('rejectModalText').innerHTML = 'Reject registration for <strong style="color: white;">' + userName + '</strong>? The user will be notified and prevented from logging in.';
+    document.getElementById('rejectModal').classList.add('active');
+  }
+
+  function closeRejectModal() {
+    document.getElementById('rejectModal').classList.remove('active');
+  }
+</script>
+{% endblock %}

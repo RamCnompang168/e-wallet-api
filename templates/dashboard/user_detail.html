@@ -1,0 +1,45 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}{{ target_user.full_name }} - Profile & Transactions{% endblock %}
+{% block page_title %}User Account & Ledger Profile{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 20px;">
+  <a href="{% url 'dashboard:users' %}" class="btn-action btn-ghost" style="padding: 8px 14px; font-size: 13px; text-decoration: none;">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    Back to Users Directory
+  </a>
+</div>
+
+<div class="card" style="padding: 24px; margin-bottom: 24px;">
+  {% include "dashboard/user_detail_modal_content.html" %}
+</div>
+
+<!-- Modal: ID Document Zoom Lightbox -->
+<div id="docDetailLightbox" class="modal-overlay" onclick="closeDetailLightbox(event)">
+  <div class="modal-content" onclick="event.stopPropagation();" style="max-width: 650px;">
+    <div class="modal-header">
+      <h3 style="font-size: 16px; font-weight: 800;">Identity Document Inspection</h3>
+      <button type="button" class="btn-action btn-ghost" style="padding: 4px 8px;" onclick="closeDetailLightbox()">✕</button>
+    </div>
+    <div class="modal-body" style="text-align: center;">
+      {% if target_user.id_document_photo %}
+        <img src="{{ target_user.id_document_photo.url }}" style="max-width: 100%; max-height: 500px; border-radius: 12px; object-fit: contain;" alt="ID Photo">
+      {% endif %}
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-action btn-ghost" onclick="closeDetailLightbox()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function openDetailLightbox() {
+    document.getElementById('docDetailLightbox').classList.add('active');
+  }
+  function closeDetailLightbox(e) {
+    if (e && e.target !== e.currentTarget && !e.target.matches('button')) return;
+    document.getElementById('docDetailLightbox').classList.remove('active');
+  }
+</script>
+{% endblock %}

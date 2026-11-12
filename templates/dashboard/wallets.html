@@ -1,0 +1,88 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Wallets & Balances{% endblock %}
+{% block page_title %}Wallets & Liquidity Pool{% endblock %}
+
+{% block content %}
+<div class="grid-4" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 24px;">
+  <div class="card">
+    <div class="stat-label">Total Circulating Balances (USD)</div>
+    <div class="stat-value" style="color: var(--accent-green);">${{ total_funds|floatformat:2 }}</div>
+    <div class="stat-meta">Backed by verified reserve ledger accounts</div>
+  </div>
+  <div class="card">
+    <div class="stat-label">Total Provisioned Wallets</div>
+    <div class="stat-value">{{ total_count }}</div>
+    <div class="stat-meta">Multi-currency wallets provisioned for active customers</div>
+  </div>
+</div>
+
+<div class="table-container">
+  <div class="table-header">
+    <div class="table-title">Customer Wallets ({{ total_count }})</div>
+    <form method="GET" class="search-wrapper">
+      <svg class="search-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <input type="text" name="q" value="{{ query }}" placeholder="Search wallet number, user..." class="input-search">
+    </form>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Wallet Number</th>
+        <th>Owner / Customer</th>
+        <th>Current Balance</th>
+        <th>Available Balance</th>
+        <th>Hold Balance</th>
+        <th>Status</th>
+        <th>Created</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for w in wallets %}
+        <tr>
+          <td>
+            <div style="font-family: monospace; font-weight: 800; font-size: 13.5px; color: var(--accent-green);">
+              {{ w.wallet_number }}
+            </div>
+            {% if w.is_primary %}
+              <span class="badge-pill badge-active" style="font-size: 10px; margin-top: 3px;">Primary</span>
+            {% endif %}
+          </td>
+          <td>
+            <div style="font-weight: 700; font-size: 14px;">{{ w.user.full_name }}</div>
+            <div style="font-size: 12px; color: var(--text-muted);">{{ w.user.phone_number }}</div>
+          </td>
+          <td style="font-weight: 700; font-size: 14px;">
+            ${{ w.current_balance|floatformat:2 }} {{ w.currency }}
+          </td>
+          <td style="font-weight: 800; font-size: 14.5px; color: var(--accent-green);">
+            ${{ w.available_balance|floatformat:2 }} {{ w.currency }}
+          </td>
+          <td style="font-size: 13px; color: var(--text-muted);">
+            ${{ w.hold_balance|floatformat:2 }}
+          </td>
+          <td>
+            {% if w.status == 'ACTIVE' %}
+              <span class="badge-pill badge-active">Active</span>
+            {% elif w.status == 'FROZEN' %}
+              <span class="badge-pill badge-rejected">Frozen</span>
+            {% else %}
+              <span class="badge-pill">{{ w.status }}</span>
+            {% endif %}
+          </td>
+          <td style="font-size: 12px; color: var(--text-muted);">
+            {{ w.created_at|date:"M d, Y" }}
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 32px 16px;">
+            No wallets found matching query.
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

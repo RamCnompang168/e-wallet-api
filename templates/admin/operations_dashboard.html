@@ -1,0 +1,27 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<style>
+  .wallet-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:16px; margin-bottom:28px; }
+  .wallet-stat { background:#fff; border:1px solid #dfe5ed; border-radius:10px; padding:18px; }
+  .wallet-stat strong { display:block; color:#0f2624; font-size:28px; margin-top:7px; }
+  .wallet-table { width:100%; border-collapse:collapse; background:#fff; }
+  .wallet-table th,.wallet-table td { text-align:left; padding:12px; border-bottom:1px solid #edf1f5; }
+</style>
+<div id="content-main">
+  <p><a href="{% url 'admin:index' %}">← Manage data</a></p>
+  <div class="wallet-grid">
+    <div class="wallet-stat">Active users<strong>{{ active_users }}</strong></div>
+    <div class="wallet-stat">Active wallets<strong>{{ active_wallets }}</strong></div>
+    <div class="wallet-stat">Frozen wallets<strong>{{ frozen_wallets }}</strong></div>
+    <div class="wallet-stat">Wallet liability<strong>${{ wallet_liability }}</strong></div>
+    <div class="wallet-stat">Completed volume<strong>${{ completed_volume }}</strong></div>
+  </div>
+  <h2>Recent completed transactions</h2>
+  <table class="wallet-table">
+    <thead><tr><th>Reference</th><th>Type</th><th>From</th><th>To</th><th>Amount</th><th>Time</th></tr></thead>
+    <tbody>{% for transaction in recent_transactions %}
+      <tr><td><a href="{% url 'admin:transactions_transaction_change' transaction.id %}">{{ transaction.reference_no }}</a></td><td>{{ transaction.transaction_type }}</td><td>{{ transaction.sender_wallet|default:'—' }}</td><td>{{ transaction.receiver_wallet|default:'—' }}</td><td>${{ transaction.amount }}</td><td>{{ transaction.created_at }}</td></tr>
+    {% empty %}<tr><td colspan="6">No completed transactions yet.</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endblock %}

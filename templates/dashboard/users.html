@@ -1,0 +1,223 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Users Management{% endblock %}
+{% block page_title %}User Accounts Directory{% endblock %}
+
+{% block content %}
+<style>
+  .user-table-row {
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+  }
+  .user-table-row:hover {
+    background-color: var(--bg-surface-elevated) !important;
+  }
+  .user-table-row:hover td:first-child {
+    border-left: 3px solid var(--accent-green);
+  }
+  .user-avatar-badge {
+    transition: transform 0.15s ease;
+  }
+  .user-table-row:hover .user-avatar-badge {
+    transform: scale(1.08);
+  }
+</style>
+
+<div class="table-container">
+  <div class="table-header">
+    <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+      <span class="table-title">Registered Accounts ({{ total_count }})</span>
+      
+      <!-- Role filters -->
+      <div style="display: flex; gap: 6px;">
+        <a href="?role=" class="badge-pill {% if not selected_role %}btn-accent{% else %}btn-ghost{% endif %}" style="text-decoration: none; padding: 4px 10px;">All Roles</a>
+        <a href="?role=CUSTOMER" class="badge-pill {% if selected_role == 'CUSTOMER' %}btn-accent{% else %}btn-ghost{% endif %}" style="text-decoration: none; padding: 4px 10px;">Customers</a>
+        <a href="?role=STAFF" class="badge-pill {% if selected_role == 'STAFF' %}btn-accent{% else %}btn-ghost{% endif %}" style="text-decoration: none; padding: 4px 10px;">Staff</a>
+        <a href="?role=ADMIN" class="badge-pill {% if selected_role == 'ADMIN' %}btn-accent{% else %}btn-ghost{% endif %}" style="text-decoration: none; padding: 4px 10px;">Admins</a>
+      </div>
+    </div>
+
+    <!-- Search Form -->
+    <form method="GET" class="search-wrapper">
+      <input type="hidden" name="role" value="{{ selected_role }}">
+      <svg class="search-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <input type="text" name="q" value="{{ query }}" placeholder="Search by name, email, phone, ID doc..." class="input-search">
+    </form>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>User Details</th>
+        <th>Role</th>
+        <th>KYC Tier</th>
+        <th>Document Verified</th>
+        <th>Wallets</th>
+        <th>Status</th>
+        <th>Joined</th>
+        <th style="text-align: right;">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+        <tr class="user-table-row" onclick="openUserModal('{{ u.id }}')" title="Click to view {{ u.full_name }}'s details and transaction history">
+          <td>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              {% if u.profile_photo %}
+                <img src="{{ u.profile_photo.url }}" class="user-avatar-badge" style="width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--accent-green);" alt="Avatar">
+              {% else %}
+                <div class="user-avatar-badge" style="width: 38px; height: 38px; border-radius: 50%; background: var(--bg-surface-elevated); border: 1.5px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; color: var(--accent-green);">
+                  {{ u.full_name|slice:":2"|upper }}
+                </div>
+              {% endif %}
+              <div>
+                <div style="font-weight: 800; font-size: 14px; color: var(--text-primary);">{{ u.full_name }}</div>
+                <div style="font-size: 12px; color: var(--text-muted);">{{ u.phone_number }} • {{ u.email }}</div>
+              </div>
+            </div>
+          </td>
+
+          <td>
+            <span class="badge-pill {% if u.role == 'ADMIN' or u.role == 'SUPER_ADMIN' %}badge-rejected{% elif u.role == 'STAFF' %}badge-pending{% else %}badge-active{% endif %}">
+              {{ u.role }}
+            </span>
+          </td>
+
+          <td>
+            <span style="font-weight: 700; font-size: 13px;">Tier {{ u.kyc_tier }}</span>
+          </td>
+
+          <td>
+            {% if u.id_document_number %}
+              <div style="font-size: 12px; font-weight: 600;">{{ u.get_id_document_type_display|default:u.id_document_type }}</div>
+              <div style="font-family: monospace; font-size: 11px; color: var(--text-muted);">{{ u.id_document_number }}</div>
+            {% else %}
+              <span style="font-size: 12px; color: var(--text-muted);">No document</span>
+            {% endif %}
+          </td>
+
+          <td>
+            {% for w in u.wallets.all %}
+              <div style="font-size: 12px; font-family: monospace; font-weight: 600;">{{ w.wallet_number }}</div>
+              <div style="font-size: 12px; color: var(--accent-green); font-weight: 800;">${{ w.available_balance|floatformat:2 }} {{ w.currency }}</div>
+            {% empty %}
+              <span style="font-size: 12px; color: var(--text-muted);">None</span>
+            {% endfor %}
+          </td>
+
+          <td>
+            {% if u.status == 'ACTIVE' %}
+              <span class="badge-pill badge-active">Active</span>
+            {% elif u.status == 'PENDING_APPROVAL' %}
+              <span class="badge-pill badge-pending">Pending Approval</span>
+            {% elif u.status == 'REJECTED' %}
+              <span class="badge-pill badge-rejected">Rejected</span>
+            {% else %}
+              <span class="badge-pill">{{ u.status }}</span>
+            {% endif %}
+          </td>
+
+          <td style="font-size: 12px; color: var(--text-muted);">
+            {{ u.created_at|date:"M d, Y" }}
+          </td>
+
+          <td style="text-align: right;" onclick="event.stopPropagation();">
+            <button type="button" 
+                    class="btn-action btn-accent" 
+                    style="padding: 5px 12px; font-size: 12px; gap: 6px;" 
+                    onclick="openUserModal('{{ u.id }}')"
+                    title="View user information & transaction history">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              View Info & History
+            </button>
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 40px 16px;">
+            No users found matching query "{{ query }}".
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal: User Profile & Transaction Ledger Slide-over -->
+<div id="userDetailModal" class="modal-overlay" onclick="closeUserModal(event)">
+  <div class="modal-content" onclick="event.stopPropagation();" style="max-width: 980px; width: 95%; max-height: 92vh; border-radius: var(--radius-lg); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);">
+    <div class="modal-header" style="background: var(--bg-card); border-bottom: 1px solid var(--border-color); position: sticky; top: 0; z-index: 10;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span class="badge-pill badge-active" style="padding: 2px 8px; font-size: 10px; font-weight: 800;">USER INSPECTION</span>
+        <h3 id="modalHeaderTitle" style="font-size: 17px; font-weight: 800; color: var(--text-primary); margin: 0;">User Profile & Transactions</h3>
+      </div>
+      <button type="button" class="btn-action btn-ghost" style="padding: 6px 12px; font-size: 14px; font-weight: 800;" onclick="closeUserModal()">✕</button>
+    </div>
+    
+    <div class="modal-body" id="userDetailModalBody" style="padding: 24px;">
+      <!-- Loaded via AJAX -->
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentActiveUserId = null;
+
+  function openUserModal(userId) {
+    currentActiveUserId = userId;
+    const modal = document.getElementById('userDetailModal');
+    const modalBody = document.getElementById('userDetailModalBody');
+    
+    // Skeleton loader
+    modalBody.innerHTML = `
+      <div style="text-align: center; padding: 60px 20px;">
+        <div style="display: inline-block; width: 44px; height: 44px; border: 3px solid rgba(56, 229, 77, 0.2); border-top-color: var(--accent-green); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+        <p style="margin-top: 18px; font-size: 14px; color: var(--text-secondary); font-weight: 600;">Loading user account credentials & transactions ledger...</p>
+      </div>
+      <style>
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      </style>
+    `;
+    
+    modal.classList.add('active');
+    loadUserDetailModal(userId, '');
+  }
+
+  function loadUserDetailModal(userId, direction) {
+    const url = `/users/${userId}/?modal=1${direction ? '&direction=' + direction : ''}`;
+    fetch(url, {
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(response => {
+      if (!response.ok) throw new Error('Failed to load user information.');
+      return response.text();
+    })
+    .then(html => {
+      document.getElementById('userDetailModalBody').innerHTML = html;
+    })
+    .catch(err => {
+      document.getElementById('userDetailModalBody').innerHTML = `
+        <div style="text-align: center; padding: 40px 20px; color: #F87171;">
+          <p style="font-weight: 700; font-size: 15px;">Could not load user details.</p>
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">${err.message}</p>
+          <button type="button" class="btn-action btn-ghost" style="margin-top: 14px;" onclick="closeUserModal()">Close</button>
+        </div>
+      `;
+    });
+  }
+
+  function closeUserModal(e) {
+    if (e && e.target !== e.currentTarget && !e.target.matches('button')) return;
+    document.getElementById('userDetailModal').classList.remove('active');
+  }
+
+  // Support ESC key to close modal
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeUserModal();
+    }
+  });
+</script>
+{% endblock %}

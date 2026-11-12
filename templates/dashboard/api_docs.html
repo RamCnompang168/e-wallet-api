@@ -1,0 +1,303 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}API & Sub-APIs Documentation{% endblock %}
+{% block page_title %}API & Sub-APIs Explorer{% endblock %}
+
+{% block extra_head %}
+<style>
+  .api-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    margin-bottom: 22px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+  }
+
+  .api-card:hover {
+    border-color: var(--border-active);
+    box-shadow: 0 8px 24px -4px var(--accent-green-glow);
+  }
+
+  .api-header {
+    padding: 16px 22px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .api-method-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 800;
+    font-family: monospace;
+    letter-spacing: 0.05em;
+  }
+
+  .method-get { background: rgba(56, 189, 248, 0.2); color: #38BDF8; border: 1px solid rgba(56, 189, 248, 0.4); }
+  .method-post { background: rgba(56, 229, 77, 0.2); color: #4ADE80; border: 1px solid rgba(56, 229, 77, 0.4); }
+  .method-delete { background: rgba(239, 68, 68, 0.2); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+
+  .api-path {
+    font-family: monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .api-body {
+    padding: 20px 22px;
+  }
+
+  .code-block {
+    background: #091715;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12.5px;
+    color: #4ADE80;
+    overflow-x: auto;
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+
+  .code-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    margin-top: 14px;
+  }
+
+  .category-pill {
+    padding: 8px 14px;
+    border-radius: var(--radius-full);
+    font-size: 12.5px;
+    font-weight: 700;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .category-pill:hover, .category-pill.active {
+    background: var(--accent-green);
+    color: #0F2624;
+    border-color: var(--accent-green);
+    box-shadow: 0 2px 10px var(--accent-green-glow);
+  }
+
+  .live-response-box {
+    margin-top: 14px;
+    padding: 12px 16px;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 10px;
+    display: none;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Overview Header & Swagger Links -->
+<div class="card" style="margin-bottom: 24px; background: linear-gradient(135deg, var(--bg-card), rgba(56, 229, 77, 0.05));">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+    <div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <h2 style="font-size: 22px; font-weight: 800;">NovaPay REST API Specification</h2>
+        <span class="badge-pill badge-active">Version 1.0.0</span>
+      </div>
+      <p style="color: var(--text-muted); font-size: 13.5px; margin-top: 6px; max-width: 650px;">
+        Comprehensive interactive API documentation covering {{ total_groups }} API domains and {{ total_endpoints }} sub-APIs for user onboarding, KYC approvals, double-entry wallet transfers, QR payments, and Cambodian government services.
+      </p>
+    </div>
+
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+      <a href="/api/docs/" target="_blank" class="btn-action btn-accent">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        Open Swagger UI
+      </a>
+      <a href="/api/redoc/" target="_blank" class="btn-action btn-ghost">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        ReDoc
+      </a>
+      <a href="/api/schema/" target="_blank" class="btn-action btn-ghost">
+        OpenAPI JSON Schema
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Category Filters & Search -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; flex-wrap: wrap; gap: 14px;">
+  <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="categoryFilterBar">
+    <button class="category-pill active" onclick="filterCategory('all', this)">All APIs ({{ total_endpoints }})</button>
+    <button class="category-pill" onclick="filterCategory('auth', this)">Auth & Security</button>
+    <button class="category-pill" onclick="filterCategory('users', this)">Users & Approvals</button>
+    <button class="category-pill" onclick="filterCategory('wallets', this)">Wallets</button>
+    <button class="category-pill" onclick="filterCategory('transfers', this)">P2P Transfers</button>
+    <button class="category-pill" onclick="filterCategory('payments', this)">Payments & Topups</button>
+    <button class="category-pill" onclick="filterCategory('gov', this)">Gov Services</button>
+    <button class="category-pill" onclick="filterCategory('notifications', this)">Notifications</button>
+  </div>
+
+  <div class="search-wrapper">
+    <svg class="search-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+    <input type="text" id="apiSearchInput" onkeyup="searchApis()" placeholder="Filter endpoints, sub-APIs, methods..." class="input-search" style="width: 280px;">
+  </div>
+</div>
+
+<!-- API & Sub-APIs Catalog -->
+<div id="apiListContainer">
+  {% for group in api_catalog %}
+    <div class="api-group-section" data-group="{{ group.badge }}" style="margin-bottom: 34px;">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+        <h3 style="font-size: 18px; font-weight: 800; color: var(--accent-green);">{{ group.group_name }}</h3>
+        <span class="badge-pill btn-ghost" style="font-size: 11px;">{{ group.sub_apis|length }} sub-APIs</span>
+      </div>
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 18px;">{{ group.description }}</p>
+
+      {% for sub in group.sub_apis %}
+        <div class="api-card" data-endpoint="{{ sub.endpoint }}" data-name="{{ sub.name }}">
+          <div class="api-header">
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+              <span class="api-method-badge method-{{ sub.method|lower }}">{{ sub.method }}</span>
+              <span class="api-path">{{ sub.endpoint }}</span>
+              <span style="font-weight: 800; font-size: 14px; color: var(--text-primary);">• {{ sub.name }}</span>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="badge-pill {% if sub.auth == 'Public' %}badge-active{% else %}badge-pending{% endif %}" style="font-size: 11px;">
+                {{ sub.auth }}
+              </span>
+              <button type="button" class="btn-action btn-ghost" style="padding: 4px 10px; font-size: 11px;" onclick="testApiEndpoint('{{ sub.endpoint }}', '{{ sub.method }}', this)">
+                <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                Test Endpoint
+              </button>
+            </div>
+          </div>
+
+          <div class="api-body">
+            <p style="font-size: 13.5px; color: var(--text-secondary); line-height: 1.5;">
+              {{ sub.description }}
+            </p>
+
+            <div style="display: grid; grid-template-columns: {% if sub.request_body %}1fr 1fr{% else %}1fr{% endif %}; gap: 18px; margin-top: 10px;">
+              {% if sub.request_body %}
+                <div>
+                  <div class="code-header">
+                    <span>JSON Request Body</span>
+                    <span>application/json</span>
+                  </div>
+                  <pre class="code-block">{{ sub.request_body|pprint }}</pre>
+                </div>
+              {% endif %}
+
+              <div>
+                <div class="code-header">
+                  <span>Success Response (HTTP 200/201)</span>
+                  <span>JSON Schema Example</span>
+                </div>
+                <pre class="code-block" style="color: #67E8F9;">{{ sub.response_example|pprint }}</pre>
+              </div>
+            </div>
+
+            <!-- Live test response container -->
+            <div class="live-response-box">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-size: 12px; font-weight: 800; color: #4ADE80;">● Live Server Test Result</span>
+                <span class="response-status" style="font-size: 11px; font-weight: 700; color: var(--text-muted);"></span>
+              </div>
+              <pre class="response-json" style="font-family: monospace; font-size: 12px; color: #A7F3D0; overflow-x: auto; margin: 0;"></pre>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endfor %}
+</div>
+
+<script>
+  function filterCategory(category, btnElement) {
+    document.querySelectorAll('.category-pill').forEach(b => b.classList.remove('active'));
+    btnElement.classList.add('active');
+
+    const sections = document.querySelectorAll('.api-group-section');
+    sections.forEach(sec => {
+      if (category === 'all' || sec.getAttribute('data-group') === category) {
+        sec.style.display = 'block';
+      } else {
+        sec.style.display = 'none';
+      }
+    });
+  }
+
+  function searchApis() {
+    const q = document.getElementById('apiSearchInput').value.toLowerCase();
+    const cards = document.querySelectorAll('.api-card');
+
+    cards.forEach(card => {
+      const endpoint = card.getAttribute('data-endpoint').toLowerCase();
+      const name = card.getAttribute('data-name').toLowerCase();
+      const content = card.textContent.toLowerCase();
+
+      if (endpoint.includes(q) || name.includes(q) || content.includes(q)) {
+        card.style.display = 'block';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+
+  function testApiEndpoint(endpoint, method, btn) {
+    const originalText = btn.innerHTML;
+    btn.innerHTML = 'Testing...';
+    btn.disabled = true;
+
+    const card = btn.closest('.api-card');
+    const responseBox = card.querySelector('.live-response-box');
+    const responseStatus = card.querySelector('.response-status');
+    const responseJson = card.querySelector('.response-json');
+
+    const formData = new FormData();
+    formData.append('endpoint', endpoint);
+    formData.append('method', method);
+
+    fetch('{% url "dashboard:api_test_runner" %}', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-CSRFToken': '{{ csrf_token }}'
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      responseBox.style.display = 'block';
+      responseStatus.textContent = 'Status: ' + data.status + ' OK';
+      responseJson.textContent = JSON.stringify(data.data, null, 2);
+    })
+    .catch(err => {
+      responseBox.style.display = 'block';
+      responseStatus.textContent = 'Error';
+      responseJson.textContent = 'Failed to execute test request: ' + err;
+    })
+    .finally(() => {
+      btn.innerHTML = originalText;
+      btn.disabled = false;
+    });
+  }
+</script>
+{% endblock %}

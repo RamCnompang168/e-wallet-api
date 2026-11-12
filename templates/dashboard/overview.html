@@ -1,0 +1,291 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Overview & Analytics{% endblock %}
+{% block page_title %}Platform Overview{% endblock %}
+
+{% block content %}
+<!-- Top Metric Summary Cards -->
+<div class="grid-4">
+  <div class="card">
+    <div class="stat-label">Total Users</div>
+    <div class="stat-value">
+      {{ total_users }}
+      <span class="badge-pill badge-active" style="font-size: 12px; margin-left: 6px;">{{ active_users }} Active</span>
+    </div>
+    <div class="stat-meta">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+      {{ rejected_users }} rejected registrations
+    </div>
+  </div>
+
+  <div class="card" {% if pending_approvals > 0 %}style="border-color: rgba(245, 158, 11, 0.45); background: linear-gradient(135deg, var(--bg-card), rgba(245, 158, 11, 0.05));"{% endif %}>
+    <div class="stat-label">Pending Account Approvals</div>
+    <div class="stat-value" style="color: {% if pending_approvals > 0 %}#FBBF24{% else %}var(--text-primary){% endif %};">
+      {{ pending_approvals }}
+      {% if pending_approvals > 0 %}
+        <span class="badge-pill badge-pending" style="font-size: 11px;">Requires Action</span>
+      {% else %}
+        <span class="badge-pill badge-active" style="font-size: 11px;">Up to date</span>
+      {% endif %}
+    </div>
+    <div class="stat-meta">
+      <a href="{% url 'dashboard:approvals' %}" style="color: var(--accent-green); text-decoration: none; font-weight: 700;">
+        Review National ID / Passport photos →
+      </a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="stat-label">System Liquidity (USD)</div>
+    <div class="stat-value" style="color: var(--accent-green);">
+      ${{ total_liquidity|floatformat:2 }}
+    </div>
+    <div class="stat-meta">
+      <span>Held in escrow: ${{ total_hold|floatformat:2 }}</span>
+      <span>• {{ active_wallets }} active wallets</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="stat-label">Processed Volume</div>
+    <div class="stat-value">
+      ${{ total_volume|floatformat:2 }}
+    </div>
+    <div class="stat-meta">
+      <span class="badge-pill badge-active">{{ success_rate }}% Success</span>
+      <span>• {{ completed_transactions }} settled</span>
+    </div>
+  </div>
+</div>
+
+<!-- Financial Charts Row -->
+<div style="display: grid; grid-template-columns: 2fr 1.1fr; gap: 20px; margin-bottom: 26px;">
+  <!-- Volume Line Chart -->
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+      <div>
+        <h3 style="font-size: 16px; font-weight: 800;">7-Day Transaction Volume</h3>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Daily settlement amounts in USD</p>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <span class="badge-pill badge-active">Live Metrics</span>
+      </div>
+    </div>
+    <div style="height: 250px;">
+      <canvas id="volumeChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Category Breakdown Donut -->
+  <div class="card">
+    <div style="margin-bottom: 16px;">
+      <h3 style="font-size: 16px; font-weight: 800;">Transaction Breakdown</h3>
+      <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">By operation category</p>
+    </div>
+    <div style="height: 200px; display: flex; align-items: center; justify-content: center;">
+      <canvas id="categoryChart"></canvas>
+    </div>
+    <div style="display: flex; justify-content: space-around; margin-top: 14px; font-size: 11.5px; color: var(--text-muted);">
+      <div><span style="color: #38E54D;">●</span> P2P: {{ type_counts.transfers }}</div>
+      <div><span style="color: #38BDF8;">●</span> Top-up: {{ type_counts.topups }}</div>
+      <div><span style="color: #F59E0B;">●</span> QR/Gov: {{ type_counts.merchant_qr|add:type_counts.government }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Two Column Tables: Pending Approvals & Live Operations -->
+<div style="display: grid; grid-template-columns: 1fr 1.3fr; gap: 20px;">
+  <!-- Pending Approvals Queue Preview -->
+  <div class="table-container">
+    <div class="table-header">
+      <div class="table-title">Pending Account Approvals</div>
+      <a href="{% url 'dashboard:approvals' %}" class="btn-action btn-ghost" style="padding: 5px 12px; font-size: 12px;">View All ({{ pending_approvals }})</a>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Applicant</th>
+          <th>Document</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in pending_users_preview %}
+          <tr>
+            <td>
+              <div style="font-weight: 700;">{{ u.full_name }}</div>
+              <div style="font-size: 12px; color: var(--text-muted);">{{ u.phone_number }}</div>
+            </td>
+            <td>
+              <span class="badge-pill badge-pending" style="font-size: 11px;">
+                {{ u.get_id_document_type_display|default:u.id_document_type }}
+              </span>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                {{ u.id_document_number|default:'No number' }}
+              </div>
+            </td>
+            <td>
+              <form method="POST" action="{% url 'dashboard:approve_user' u.id %}" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-action btn-accent" style="padding: 4px 10px; font-size: 11px;">Approve</button>
+              </form>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 32px 16px;">
+              <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="margin-bottom: 8px; opacity: 0.5;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+              <div>All registrations are approved!</div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Recent Completed Transactions -->
+  <div class="table-container">
+    <div class="table-header">
+      <div class="table-title">Recent Transactions</div>
+      <a href="{% url 'dashboard:transactions' %}" class="btn-action btn-ghost" style="padding: 5px 12px; font-size: 12px;">Full Ledger →</a>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Reference</th>
+          <th>Type</th>
+          <th>Amount</th>
+          <th>Status</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for txn in recent_transactions %}
+          <tr>
+            <td>
+              <div style="font-family: monospace; font-size: 12px; font-weight: 700; color: var(--accent-green);">
+                {{ txn.reference_number|default:txn.transaction_code }}
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted);">
+                {{ txn.description|truncatechars:26 }}
+              </div>
+            </td>
+            <td>
+              <span style="font-size: 12px; font-weight: 600;">
+                {{ txn.get_transaction_type_display }}
+              </span>
+            </td>
+            <td>
+              <span style="font-weight: 800; font-size: 14px;">
+                ${{ txn.amount|floatformat:2 }}
+              </span>
+            </td>
+            <td>
+              {% if txn.status == 'COMPLETED' %}
+                <span class="badge-pill badge-active">Completed</span>
+              {% elif txn.status == 'PENDING' or txn.status == 'PROCESSING' %}
+                <span class="badge-pill badge-pending">{{ txn.status }}</span>
+              {% else %}
+                <span class="badge-pill badge-rejected">{{ txn.status }}</span>
+              {% endif %}
+            </td>
+            <td style="font-size: 12px; color: var(--text-muted);">
+              {{ txn.created_at|date:"M d, H:i" }}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 32px 16px;">
+              No transactions recorded yet.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // 7-day Volume Line Chart
+  const dailyLabels = {{ daily_labels_json|safe }};
+  const dailyAmounts = {{ daily_amounts_json|safe }};
+
+  const ctxVol = document.getElementById('volumeChart').getContext('2d');
+  const gradient = ctxVol.createLinearGradient(0, 0, 0, 240);
+  gradient.addColorStop(0, 'rgba(56, 229, 77, 0.45)');
+  gradient.addColorStop(1, 'rgba(56, 229, 77, 0.0)');
+
+  new Chart(ctxVol, {
+    type: 'line',
+    data: {
+      labels: dailyLabels,
+      datasets: [{
+        label: 'Volume ($ USD)',
+        data: dailyAmounts,
+        borderColor: '#38E54D',
+        backgroundColor: gradient,
+        borderWidth: 2.5,
+        fill: true,
+        tension: 0.35,
+        pointBackgroundColor: '#38E54D',
+        pointRadius: 4,
+        pointHoverRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#94A3B8', font: { family: 'Plus Jakarta Sans', size: 11 } }
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: {
+            color: '#94A3B8',
+            font: { family: 'Plus Jakarta Sans', size: 11 },
+            callback: value => '$' + value
+          }
+        }
+      }
+    }
+  });
+
+  // Category Breakdown Doughnut Chart
+  const ctxCat = document.getElementById('categoryChart').getContext('2d');
+  new Chart(ctxCat, {
+    type: 'doughnut',
+    data: {
+      labels: ['Transfers', 'Top-ups', 'Withdrawals', 'Merchant QR', 'Gov Services'],
+      datasets: [{
+        data: [
+          {{ type_counts.transfers }},
+          {{ type_counts.topups }},
+          {{ type_counts.withdrawals }},
+          {{ type_counts.merchant_qr }},
+          {{ type_counts.government }}
+        ],
+        backgroundColor: ['#38E54D', '#38BDF8', '#F59E0B', '#A855F7', '#EC4899'],
+        borderWidth: 0,
+        hoverOffset: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      cutout: '72%'
+    }
+  });
+</script>
+{% endblock %}

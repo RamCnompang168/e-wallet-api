@@ -1,0 +1,120 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Transactions Ledger{% endblock %}
+{% block page_title %}Financial Transaction Ledger{% endblock %}
+
+{% block content %}
+<div class="grid-4" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 24px;">
+  <div class="card">
+    <div class="stat-label">Filtered Settled Volume (USD)</div>
+    <div class="stat-value" style="color: var(--accent-green);">${{ total_sum|floatformat:2 }}</div>
+    <div class="stat-meta">Total successfully settled matching current filter criteria</div>
+  </div>
+  <div class="card">
+    <div class="stat-label">Total Transactions Count</div>
+    <div class="stat-value">{{ total_count }}</div>
+    <div class="stat-meta">Includes P2P transfers, deposits, withdrawals, and merchant payments</div>
+  </div>
+</div>
+
+<div class="table-container">
+  <div class="table-header">
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <span class="table-title">Ledger Journal</span>
+      <div style="display: flex; gap: 6px;">
+        <a href="?type=" class="badge-pill {% if not selected_type %}btn-accent{% else %}btn-ghost{% endif %}" style="text-decoration: none; padding: 4px 10px;">All Types</a>
+        <a href="?type=TRANSFER" class="badge-pill {% if selected_type == 'TRANSFER' %}btn-accent{% else %}btn-ghost{% endif %}" style="text-decoration: none; padding: 4px 10px;">Transfers</a>
+        <a href="?type=TOPUP" class="badge-pill {% if selected_type == 'TOPUP' %}btn-accent{% else %}btn-ghost{% endif %}" style="text-decoration: none; padding: 4px 10px;">Top-ups</a>
+        <a href="?type=WITHDRAWAL" class="badge-pill {% if selected_type == 'WITHDRAWAL' %}btn-accent{% else %}btn-ghost{% endif %}" style="text-decoration: none; padding: 4px 10px;">Withdrawals</a>
+        <a href="?type=MERCHANT_PAYMENT" class="badge-pill {% if selected_type == 'MERCHANT_PAYMENT' %}btn-accent{% else %}btn-ghost{% endif %}" style="text-decoration: none; padding: 4px 10px;">Merchant/QR</a>
+      </div>
+    </div>
+
+    <form method="GET" class="search-wrapper">
+      <input type="hidden" name="type" value="{{ selected_type }}">
+      <svg class="search-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <input type="text" name="q" value="{{ query }}" placeholder="Search ref, description, user..." class="input-search">
+    </form>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Reference & Code</th>
+        <th>Type</th>
+        <th>From User / Wallet</th>
+        <th>To User / Wallet</th>
+        <th>Amount (USD)</th>
+        <th>Status</th>
+        <th>Completed At</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for txn in transactions %}
+        <tr>
+          <td>
+            <div style="font-family: monospace; font-weight: 800; font-size: 13px; color: var(--accent-green);">
+              {{ txn.reference_number|default:txn.transaction_code }}
+            </div>
+            <div style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+              {{ txn.description|default:'No description' }}
+            </div>
+          </td>
+
+          <td>
+            <span style="font-weight: 600; font-size: 12.5px;">{{ txn.get_transaction_type_display }}</span>
+          </td>
+
+          <td>
+            {% if txn.sender_wallet %}
+              <div style="font-weight: 700; font-size: 13px;">{{ txn.sender_wallet.user.full_name }}</div>
+              <div style="font-family: monospace; font-size: 11px; color: var(--text-muted);">{{ txn.sender_wallet.wallet_number }}</div>
+            {% else %}
+              <span style="font-size: 12px; color: var(--text-muted);">External Inflow</span>
+            {% endif %}
+          </td>
+
+          <td>
+            {% if txn.receiver_wallet %}
+              <div style="font-weight: 700; font-size: 13px;">{{ txn.receiver_wallet.user.full_name }}</div>
+              <div style="font-family: monospace; font-size: 11px; color: var(--text-muted);">{{ txn.receiver_wallet.wallet_number }}</div>
+            {% else %}
+              <span style="font-size: 12px; color: var(--text-muted);">External Outflow / Merchant</span>
+            {% endif %}
+          </td>
+
+          <td>
+            <span style="font-weight: 900; font-size: 15px; color: var(--text-primary);">
+              ${{ txn.amount|floatformat:2 }}
+            </span>
+            {% if txn.fee_amount > 0 %}
+              <div style="font-size: 11px; color: var(--text-muted);">Fee: ${{ txn.fee_amount|floatformat:2 }}</div>
+            {% endif %}
+          </td>
+
+          <td>
+            {% if txn.status == 'COMPLETED' %}
+              <span class="badge-pill badge-active">Completed</span>
+            {% elif txn.status == 'PENDING' or txn.status == 'PROCESSING' %}
+              <span class="badge-pill badge-pending">{{ txn.status }}</span>
+            {% else %}
+              <span class="badge-pill badge-rejected">{{ txn.status }}</span>
+            {% endif %}
+          </td>
+
+          <td style="font-size: 12px; color: var(--text-muted);">
+            {{ txn.created_at|date:"M d, Y" }}
+            <div>{{ txn.created_at|date:"H:i:s" }}</div>
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 32px 16px;">
+            No transactions match criteria.
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

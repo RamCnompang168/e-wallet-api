@@ -1,0 +1,110 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: novapay_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-ewallet_db}
+      POSTGRES_USER: ${DATABASE_USER:-ewallet_user}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-ewallet_secure_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-ewallet_user} -d ${DATABASE_NAME:-ewallet_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: novapay_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: novapay_api
+    restart: unless-stopped
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py seed_data &&
+             gunicorn --bind 0.0.0.0:8000 --workers 4 --threads 2 API.wsgi:application"
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.example
+    environment:
+      DATABASE_URL: postgresql://${DATABASE_USER:-ewallet_user}:${DATABASE_PASSWORD:-ewallet_secure_password}@postgres:5432/${DATABASE_NAME:-ewallet_db}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      CELERY_TASK_ALWAYS_EAGER: "False"
+      DJANGO_DEBUG: "False"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - media_volume:/app/media
+      - static_volume:/app/staticfiles
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: novapay_celery_worker
+    restart: unless-stopped
+    command: celery -A API worker --loglevel=info --concurrency=4
+    env_file:
+      - .env.example
+    environment:
+      DATABASE_URL: postgresql://${DATABASE_USER:-ewallet_user}:${DATABASE_PASSWORD:-ewallet_secure_password}@postgres:5432/${DATABASE_NAME:-ewallet_db}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      CELERY_TASK_ALWAYS_EAGER: "False"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: novapay_celery_beat
+    restart: unless-stopped
+    command: celery -A API beat --loglevel=info
+    env_file:
+      - .env.example
+    environment:
+      DATABASE_URL: postgresql://${DATABASE_USER:-ewallet_user}:${DATABASE_PASSWORD:-ewallet_secure_password}@postgres:5432/${DATABASE_NAME:-ewallet_db}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      CELERY_TASK_ALWAYS_EAGER: "False"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_volume:
+  static_volume:
